@@ -1,14 +1,11 @@
-using System;
 using System.Collections.Generic;
 using Jypeli;
 using Jypeli.Assets;
-using Jypeli.Controls;
-using Jypeli.Effects;
 
 namespace Kaljapeli; 
 
-/// @author lauri
-/// @version 18.10.2024
+/// @author tuomiluu
+/// @version 22.11.2024
 /// <summary>
 /// Pelin tarkoituksena on kerätä tölkkejä kentältä. Kun on kerännyt 10 tölkkiä, voittaa. Kentällä on myös esteitä ja apuesineitä. 
 /// </summary>
@@ -17,26 +14,30 @@ public class Kaljapeli : PhysicsGame
     private const double Nopeus = 240;
     private const double HyppyNopeus = 600;
     private const int RuudunLeveys = 40;
-    private const int RRuudunKorkeus = 40;
+    private const int RuudunKorkeus = 40;
     private const int TolkkiMaara = 10;
     
-    private PlatformCharacter pelaaja1;
+    private PlatformCharacter _pelaaja;
     
-    private int keratytTolkit;
-    private int jaljellaOlevatTolkit;
+    private int _keratytTolkit;
     
-    private Image pelaajanKuva = LoadImage("ukko1.png");
-    private Image tolkkiKuva = LoadImage("tsingtao.png");
-    private Image taustaKuva = LoadImage("tausta.png");
-    private Image lasolKuva = LoadImage("lasol.png");
-    private Image seinaKuva = LoadImage("seina.png");
-    private Image gasKuva = LoadImage("fastgas.png");
+    private Image _pelaajanKuva = LoadImage("ukko1.png");
+    private Image _tolkkiKuva = LoadImage("tsingtao.png");
+    private Image _taustaKuva = LoadImage("tausta.png");
+    private Image _lasolKuva = LoadImage("lasol.png");
+    private Image _seinaKuva = LoadImage("seina.png");
+    private Image _gasKuva = LoadImage("fastgas.png");
     
-    private bool gasActive = true;
-    private bool isBoosted;
-    private SoundEffect kaljaAani = LoadSoundEffect("can-open-2.wav");
-    private SoundEffect gasAani = LoadSoundEffect("lempparidj.wav");
+    private bool _gasActive = true;
+    private bool _isBoosted;
     
+    private SoundEffect _kaljaAani = LoadSoundEffect("can-open-2.wav");
+    private SoundEffect _gasAani = LoadSoundEffect("lempparidj.wav");
+    
+    
+    /// <summary>
+    /// Aloitusmetodi, joka asettaa painovoiman, luo pelikentän, asettaa kameran ja lisää ohjaimet.
+    /// </summary>
     public override void Begin()
     {
         Gravity = new Vector(0, -1000);
@@ -45,14 +46,17 @@ public class Kaljapeli : PhysicsGame
         LuoKentta();
         LisaaNappaimet();
 
-        Camera.Follow(pelaaja1);
+        Camera.Follow(_pelaaja);
         Camera.ZoomFactor = 5.0;
         Camera.StayInLevel = true;
         IsFullScreen = false;
         MasterVolume = 0.5;        
     }
     
-
+    
+    /// <summary>
+    /// Luo pelikentän, joka on määritelty StringArrayssa. 
+    /// </summary>
     private void LuoKentta()
     {
         string[] kentta =
@@ -81,7 +85,7 @@ public class Kaljapeli : PhysicsGame
             "          *                    *                                       ##        ###  ?  ###                                                                                                  ",
             "         ###                  ###               ####            ###                                                                                                                           ",
             "                   #####               ####              ###                                                                                                                                  ",
-            " N      !                  ?                                                                                                                                                                   ",
+            " N      !                 ?                                                                                                                                                                   ",
             "##############################################################################################################################################################################################",
         };
 
@@ -91,135 +95,203 @@ public class Kaljapeli : PhysicsGame
         tiles.SetTileMethod('N', LisaaPelaaja);
         tiles.SetTileMethod('?', LisaaLasol);
         tiles.SetTileMethod('!', LisaaFastgas);
-        tiles.Execute(RuudunLeveys, RRuudunKorkeus);
+        tiles.Execute(RuudunLeveys, RuudunKorkeus);
 
         GameObject tausta = new GameObject(Level.Width, Level.Height);
-        tausta.Image = taustaKuva;
+        tausta.Image = _taustaKuva;
         tausta.Position = Level.Center;
 
         Add(tausta, -1);
+        
+        Level.CreateBorders();
     }
 
+
+    /// <summary>
+    /// Lisää törmaäyskäsittelijät pelaajalle
+    /// </summary>
+    /// <param name="pelaaja">pelaaja, jolle käsittelijät lisätään</param>
+    private void LisaaTormays(PlatformCharacter pelaaja)
+    {
+        var collisionHandlers = new List<(string tag, CollisionHandler<PhysicsObject, PhysicsObject> handler)>
+        {
+            ("tolkki", TormaaTolkkiin),
+            ("lasol", TormaaLasol),
+            ("gas", TormaaGas)
+        };
+
+        foreach (var handler in collisionHandlers)
+        {
+            AddCollisionHandler(pelaaja, handler.tag, handler.handler);
+        }
+    }
     
+    
+    /// <summary>
+    /// Lisää pelikentälle tasoja, joiden sijainti on annettu TileMapissa
+    /// </summary>
+    /// <param name="paikka">Kentälle luodun tason sijainti</param>
+    /// <param name="leveys">Tason leveys</param>
+    /// <param name="korkeus">Tason korkeus</param>
     private void LisaaTaso(Vector paikka, double leveys, double korkeus)
     {
         PhysicsObject taso = PhysicsObject.CreateStaticObject(leveys, korkeus);
         taso.Position = paikka;
-        taso.Image = seinaKuva;
+        taso.Image = _seinaKuva;
         taso.Tag = "taso";
-
-        Level.CreateBorders();
-
+        
         Add(taso);
     }
 
-
+    
+    /// <summary>
+    /// Lisää kentälle lasol -objektin, johon osuttaessa peli loppuu.
+    /// </summary>
+    /// <param name="paikka">Objektin paikka</param>
+    /// <param name="leveys">Objektin leveys</param>
+    /// <param name="korkeus">Objektin korkeus</param>
     private void LisaaLasol(Vector paikka, double leveys, double korkeus)
     {
         PhysicsObject lasol = PhysicsObject.CreateStaticObject(leveys, korkeus);
         lasol.IgnoresCollisionResponse = true;
         lasol.Position = paikka;
-        lasol.Image = lasolKuva;
+        lasol.Image = _lasolKuva;
         lasol.Tag = "lasol";
         Add(lasol); 
     }
 
 
+    /// <summary>
+    /// Lisää kentälle fastgas -objektin
+    /// </summary>
+    /// <param name="paikka"></param>
+    /// <param name="leveys"></param>
+    /// <param name="korkeus"></param>
     private void LisaaFastgas(Vector paikka, double leveys, double korkeus)
     {
         PhysicsObject gas = PhysicsObject.CreateStaticObject(leveys, korkeus);
         gas.IgnoresCollisionResponse = true;
         gas.Position = paikka;
-        gas.Image = gasKuva;
+        gas.Image = _gasKuva;
         gas.Tag = "gas";
         Add(gas);
     }
 
-
+    /// <summary>
+    /// lisää peliin tölkit, mitä on möärö kerätä
+    /// </summary>
+    /// <param name="paikka">tölkin paikka</param>
+    /// <param name="leveys">tölkin lelveys</param>
+    /// <param name="korkeus">tölkin korkeus</param>
     private void LisaaTolkki(Vector paikka, double leveys, double korkeus)
     {
         PhysicsObject tolkki = PhysicsObject.CreateStaticObject(leveys, korkeus);
         tolkki.IgnoresCollisionResponse = true;
         tolkki.Position = paikka;
-        tolkki.Image = tolkkiKuva;
+        tolkki.Image = _tolkkiKuva;
         tolkki.Tag = "tolkki";
         Add(tolkki);
     }
 
-
+    
+    /// <summary>
+    /// lisöä pelaajan kentälle
+    /// </summary>
+    /// <param name="paikka">pelaajan paikka</param>
+    /// <param name="leveys">pelaajan leveys</param>
+    /// <param name="korkeus">pelaajan korkeus</param>
     private void LisaaPelaaja(Vector paikka, double leveys, double korkeus)
     {
-        pelaaja1 = new PlatformCharacter(leveys, korkeus);
-        pelaaja1.Position = paikka;
-        pelaaja1.Mass = 4.0;
-        pelaaja1.Image = pelaajanKuva;
+        _pelaaja = new PlatformCharacter(leveys, korkeus);
+        _pelaaja.Position = paikka;
+        _pelaaja.Mass = 4.0;
+        _pelaaja.Image = _pelaajanKuva;
         
-        AddCollisionHandler(pelaaja1, "tolkki", TormaaTolkkiin);
-        AddCollisionHandler(pelaaja1, "lasol", TormaaLasol);
-        AddCollisionHandler(pelaaja1, "gas", TormaaGas);
+        LisaaTormays(_pelaaja);
         
-        Add(pelaaja1);
+        Add(_pelaaja);
     }
 
-
+    
+    /// <summary>
+    /// Lisää peliin ohjaimet
+    /// </summary>
     private void LisaaNappaimet()
     {
-        // Normaalit liikkumiskäskyt
-        Keyboard.Listen(Key.Left, ButtonState.Down, () => Liikuta(pelaaja1, isBoosted ? -(Nopeus + 400) : -Nopeus), "Liiku vasemmalle");
-        Keyboard.Listen(Key.Right, ButtonState.Down, () => Liikuta(pelaaja1, isBoosted ? Nopeus + 400 : Nopeus), "Liiku oikealle");
-        Keyboard.Listen(Key.Up, ButtonState.Pressed, Hyppaa, "Hyppää", pelaaja1, HyppyNopeus);
-
-        // Muut toiminnot
+        Keyboard.Listen(Key.Left, ButtonState.Down, () => Liikuta(_pelaaja, _isBoosted ? -(Nopeus + 400) : -Nopeus), "Liiku vasemmalle");
+        Keyboard.Listen(Key.Right, ButtonState.Down, () => Liikuta(_pelaaja, _isBoosted ? Nopeus + 400 : Nopeus), "Liiku oikealle");
+        Keyboard.Listen(Key.Up, ButtonState.Pressed, Hyppaa, "Hyppää", _pelaaja, HyppyNopeus);
+        
         Keyboard.Listen(Key.F1, ButtonState.Pressed, ShowControlHelp, "Näytä ohjeet");
         Keyboard.Listen(Key.Escape, ButtonState.Pressed, ConfirmExit, "Lopeta peli");
         Keyboard.Listen(Key.F, ButtonState.Pressed, KokoNaytto, "Aseta peli kokonäytön tilaan");
     
         Keyboard.Listen(Key.T, ButtonState.Pressed, () =>
         {
-            int jaljella = NaytaTolkit(); // Päivittää arvon ja palauttaa sen
+            int jaljella = NaytaTolkit();
             MessageDisplay.Add($"Jäljellä olevat tölkit: {jaljella}");
         }, "Näytä jäljellä olevat tölkit");
     }
 
     
+    /// <summary>
+    /// Toggle kokonäytön tilan päälle ja pois 
+    /// </summary>
     private void KokoNaytto()
     {
-        // Vaihtaa näytön kokonäytön tilaan ja takaisin
         IsFullScreen = !IsFullScreen;
     }
 
     
+    /// <summary>
+    /// Lisää pelaajalle liikkumisen
+    /// </summary>
+    /// <param name="hahmo">Liikutettava hahmo</param>
+    /// <param name="nopeus">Liikutettavan hahmon nopeus</param>
     private void Liikuta(PlatformCharacter hahmo, double nopeus)
     {
         hahmo.Walk(nopeus);
     }
 
 
+    /// <summary>
+    /// Lisää pelaajalle hypyn
+    /// </summary>
+    /// <param name="hahmo">hahmo jolla hypätään</param>
+    /// <param name="nopeus">hypyn nopeus</param>
     private void Hyppaa(PlatformCharacter hahmo, double nopeus)
     {
         hahmo.Jump(nopeus);
     }
 
 
+    /// <summary>
+    /// Lisää tölkki -objektille toiminnan 
+    /// </summary>
+    /// <param name="hahmo"></param>
+    /// <param name="tolkki"></param>
     private void TormaaTolkkiin(PhysicsObject hahmo, PhysicsObject tolkki)
     {
-        kaljaAani.Play();
+        _kaljaAani.Play();
         MessageDisplay.Add("Keräsit tölkin!");
         tolkki.Destroy();
 
-        keratytTolkit++;
-        if (keratytTolkit >= TolkkiMaara)
+        _keratytTolkit++;
+        if (_keratytTolkit >= TolkkiMaara)
         {
             VoititPelin();
         }
     }
     
 
+    /// <summary>
+    /// Käsittelee pelaajan törmäyksen lasol -objektin kanssa
+    /// luo räjähdyksen ja poistaa pelaajan jonka jälkeen näyttää  pelin loppuviestin
+    /// </summary>
+    /// <param name="hahmo"></param>
+    /// <param name="lasol"></param>
     private void TormaaLasol(PhysicsObject hahmo, PhysicsObject lasol)
     {
-        Font roboto = LoadFont("RobotoMono-Bold.otf");
-        roboto.Size = 50;
-        
         var rajahdys = new Explosion(800);
         rajahdys.Position = lasol.Position;
         rajahdys.UseShockWave = true;
@@ -228,66 +300,81 @@ public class Kaljapeli : PhysicsGame
         hahmo.IsVisible = false;
         Remove(hahmo);
         
-        Label peliLoppui = new Label("Osuit Lasoliin! Sait alkoholimyrkytyksen!");
-        peliLoppui.Font = roboto;
-        peliLoppui.TextScale *= 2;
-        peliLoppui.HorizontalAlignment = HorizontalAlignment.Center;
-        peliLoppui.VerticalAlignment = VerticalAlignment.Center;
-        peliLoppui.TextColor = Color.Red;
-
-        new Vector(Screen.Width / 2 - peliLoppui.Width / 2, Screen.Height / 2 - peliLoppui.Height / 2);
-
+        Label peliLoppui = LuoLabel("Osuit Lasoliin! Sait alkoholimyrkytyksen!", Color.Red);
+        
         Add(peliLoppui);
 
         lasol.Destroy();
     }
 
-
+    
+    /// <summary>
+    /// Luo textlabelin, jota  voidaan kutsua näyttämään tekstiä
+    /// </summary>
+    /// <param name="text">Näytettävä teksti</param>
+    /// <param name="color">tekstin väri</param>
+    /// <returns>Palauttaa ja näyttää luodun labelin</returns>
+    private Label LuoLabel(string text, Color color)
+    {
+        Font roboto = LoadFont("RobotoMono-Bold.ttf");
+        roboto.Size = 50;
+        Label label = new Label(text); 
+        label.Font = roboto;
+        label.TextScale *= 2;
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.TextColor = color;
+        
+        return label;   
+    }
+    
+    
+    /// <summary>
+    /// Käsittelee pelaajan törmäyksen fastgas -objektiin
+    /// Antaa pelaajalle nopeuden lisäyksen, ja kameran zoomauksen ulospäin määritetyksi ajaksi. 
+    /// </summary>
+    /// <param name="hahmo"></param>
+    /// <param name="gas"></param>
     private void TormaaGas(PhysicsObject hahmo, PhysicsObject gas)
     {
-        const double nopeudenLisays = 400;
         const double kestoSekunteina = 5.0;
-        gasAani.Play();
-
-        // Aktivoidaan nopeutus ja kamera-zoomi
-        if (gasActive) 
+        _gasAani.Play();
+       
+        if (_gasActive) 
         {
             Camera.ZoomFactor = 3.0;
         }
     
-        isBoosted = true;  // Asetetaan nopeusbuusti aktiiviseksi
-
-        // Ajastimen avulla nopeutus palautetaan normaaliksi tietyn ajan jälkeen
+        _isBoosted = true;  
+        
         Timer.SingleShot(kestoSekunteina, delegate
         {
-            Camera.ZoomFactor = 5.0; // Palautetaan kamera alkuperäiseen tilaan
-            isBoosted = false; // Poistetaan nopeuden lisäys
+            Camera.ZoomFactor = 5.0;
+            _isBoosted = false;
         });
 
         gas.Destroy();
     }
 
+
+    /// <summary>
+    /// Ohjelma laskee jäljellä olevat tölkit
+    /// </summary>
+    /// <returns>palauttaa jäljellä olevien tölkkien määrän</returns>
     private int NaytaTolkit() 
     {
-        int jaljellaOlevatTolkit = TolkkiMaara - keratytTolkit;
-        return jaljellaOlevatTolkit; // Palauttaa jäljellä olevien tölkkien määrän 
+        int jaljellaOlevatTolkit = TolkkiMaara - _keratytTolkit;
+        return jaljellaOlevatTolkit; 
     }
     
     
+    /// <summary>
+    /// Peli loppuu 
+    /// </summary>
     private void VoititPelin()
     {
-        Font roboto = LoadFont("RobotoMono-Bold.otf");
-        roboto.Size = 50;
-
-        Label voititPelin = new Label("Keräsit 10 tölkkiä! Voitit!");
-        voititPelin.Font = roboto;
-        voititPelin.TextScale *= 2;
-        voititPelin.HorizontalAlignment = HorizontalAlignment.Center;
-        voititPelin.VerticalAlignment = VerticalAlignment.Center;
-        voititPelin.TextColor = Color.Green;
-
-        new Vector(Screen.Width / 2 - voititPelin.Width / 2, Screen.Height / 2 - voititPelin.Height / 2);
-
+        Label voititPelin = LuoLabel("Keräsit 10 tölkkiä! Voitit!", Color.Green);
+        
         Add(voititPelin);
 
         IsPaused = true;
