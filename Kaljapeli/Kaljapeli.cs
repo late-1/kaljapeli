@@ -14,16 +14,17 @@ namespace Kaljapeli;
 /// </summary>
 public class Kaljapeli : PhysicsGame
 {
-    private const double NOPEUS = 240;
-    private const double HYPPYNOPEUS = 600;
-    private const int RUUDUN_LEVEYS = 40;
-    private const int RUUDUN_KORKEUS = 40;
-    private const int TOLKKI_MAARA = 10;
-
+    private const double Nopeus = 240;
+    private const double HyppyNopeus = 600;
+    private const int RuudunLeveys = 40;
+    private const int RRuudunKorkeus = 40;
+    private const int TolkkiMaara = 10;
+    
     private PlatformCharacter pelaaja1;
     
-    private int keratytTolkit = 0;
-
+    private int keratytTolkit;
+    private int jaljellaOlevatTolkit;
+    
     private Image pelaajanKuva = LoadImage("ukko1.png");
     private Image tolkkiKuva = LoadImage("tsingtao.png");
     private Image taustaKuva = LoadImage("tausta.png");
@@ -32,22 +33,22 @@ public class Kaljapeli : PhysicsGame
     private Image gasKuva = LoadImage("fastgas.png");
     
     private bool gasActive = true;
-    
+    private bool isBoosted;
     private SoundEffect kaljaAani = LoadSoundEffect("can-open-2.wav");
     private SoundEffect gasAani = LoadSoundEffect("lempparidj.wav");
-    //private SoundEffect lasolAani = LoadSoundEffect();
     
     public override void Begin()
     {
         Gravity = new Vector(0, -1000);
 
+        KokoNaytto();
         LuoKentta();
         LisaaNappaimet();
 
         Camera.Follow(pelaaja1);
         Camera.ZoomFactor = 5.0;
         Camera.StayInLevel = true;
-         IsFullScreen = true;
+        IsFullScreen = false;
         MasterVolume = 0.5;        
     }
     
@@ -56,41 +57,41 @@ public class Kaljapeli : PhysicsGame
     {
         string[] kentta =
         {
-            "                                                                                                                                                                                    ",
-            "                                                    *  *  *                                                                                                                         ",
-            "                                                   #########                                                                                                                        ",
-            "                                                                                                                                                                                    ",
-            "                                              ###                                                                                                                                   ",
-            "                                                                 ?                                                                                                                  ",
-            "                                                   ###     #     #     #     #######                                                                                                ",
-            "                                                                                         #                                                                                          ",
-            "                                                                                              ######                                                                                ",
-            "                                                                                                          ########                                                                  ",
-            "                                                                                                                    #                                                               ",
-            "                                                                                                                        #       *                                                   ",
-            "                                                                                                                               ###                                                  ",
-            "                                                                                                                          #                                                         ",
-            "                                                                                                                        #                                                           ",
-            "                                                                                                                     #                                                              ",
-            "                                   *                                                                   *       #                                                                    ",
-            "                                  ###             ?                                                    ####                                                                         ",
-            "                                                ######             !                         ####                                                                                   ",
-            "                                                                  ###                ###                                                                                            ",
-            "                                                                                                                                                                                    ",
-            "     *               *                                       ##        ###    ###                                                                                                   ",
-            "    ###             ###               ####            ###                                                                                                                           ",
-            "         #####               ####              ###                                                                                                                                  ",
-            " N                  ?                                ?                                                                                                                             ",
-            "####################################################################################################################################################################################",
+            "                                                                                                                                                                                              ",
+            "                                                    *  *  *                                                                                                                                   ",
+            "                                                   #########                                                                                                                                  ",
+            "                                                                                                                                                                                              ",
+            "                                              ###                                                                                                                                             ",
+            "                                                                 ?                                                                                                                            ",
+            "                                                   ###     #          #     #     #######                                                                                                     ",
+            "                                                                                                   #      *                                                                                   ",
+            "                                                                                                        ######                                                                                ",
+            "                                                                                                                    ########                                                                  ",
+            "                                                                                                                              #                                                               ",
+            "                                                                                                                                  #       *                                                   ",
+            "                                                                                                                                         ###                                                  ",
+            "                                                                                                                                    #                                                         ",
+            "                                                                                                                               ?  #                                                           ",
+            "                                                                                                                               #                                                              ",
+            "                                             *                                                                      *      #                                                                  ",
+            "                                            ###             ?                                                    ####                                                                         ",
+            "                                                          ######             !                         ####                                                                                   ",
+            "                                                                            ###                ###                                                                                            ",
+            "                                                                                                                                                                                              ",
+            "          *                    *                                       ##        ###  ?  ###                                                                                                  ",
+            "         ###                  ###               ####            ###                                                                                                                           ",
+            "                   #####               ####              ###                                                                                                                                  ",
+            " N      !                  ?                                                                                                                                                                   ",
+            "##############################################################################################################################################################################################",
         };
 
         TileMap tiles = TileMap.FromStringArray(kentta);
-        tiles.SetTileMethod('#', LisaaTaso);
+        tiles.SetTileMethod('#', LisaaTaso);     
         tiles.SetTileMethod('*', LisaaTolkki);
         tiles.SetTileMethod('N', LisaaPelaaja);
         tiles.SetTileMethod('?', LisaaLasol);
         tiles.SetTileMethod('!', LisaaFastgas);
-        tiles.Execute(RUUDUN_LEVEYS, RUUDUN_KORKEUS);
+        tiles.Execute(RuudunLeveys, RRuudunKorkeus);
 
         GameObject tausta = new GameObject(Level.Width, Level.Height);
         tausta.Image = taustaKuva;
@@ -120,7 +121,7 @@ public class Kaljapeli : PhysicsGame
         lasol.Position = paikka;
         lasol.Image = lasolKuva;
         lasol.Tag = "lasol";
-        Add(lasol);
+        Add(lasol); 
     }
 
 
@@ -152,39 +153,42 @@ public class Kaljapeli : PhysicsGame
         pelaaja1.Position = paikka;
         pelaaja1.Mass = 4.0;
         pelaaja1.Image = pelaajanKuva;
+        
         AddCollisionHandler(pelaaja1, "tolkki", TormaaTolkkiin);
-
         AddCollisionHandler(pelaaja1, "lasol", TormaaLasol);
-
         AddCollisionHandler(pelaaja1, "gas", TormaaGas);
-
+        
         Add(pelaaja1);
     }
 
 
     private void LisaaNappaimet()
     {
+        // Normaalit liikkumiskäskyt
+        Keyboard.Listen(Key.Left, ButtonState.Down, () => Liikuta(pelaaja1, isBoosted ? -(Nopeus + 400) : -Nopeus), "Liiku vasemmalle");
+        Keyboard.Listen(Key.Right, ButtonState.Down, () => Liikuta(pelaaja1, isBoosted ? Nopeus + 400 : Nopeus), "Liiku oikealle");
+        Keyboard.Listen(Key.Up, ButtonState.Pressed, Hyppaa, "Hyppää", pelaaja1, HyppyNopeus);
+
+        // Muut toiminnot
         Keyboard.Listen(Key.F1, ButtonState.Pressed, ShowControlHelp, "Näytä ohjeet");
         Keyboard.Listen(Key.Escape, ButtonState.Pressed, ConfirmExit, "Lopeta peli");
-
-        Keyboard.Listen(Key.Left, ButtonState.Down, Liikuta, "Liikku vasemmalle", pelaaja1, -NOPEUS);
-        Keyboard.Listen(Key.Right, ButtonState.Down, Liikuta, "Liiku oikealle", pelaaja1, NOPEUS);
-        Keyboard.Listen(Key.Up, ButtonState.Pressed, Hyppaa, "Hyppää", pelaaja1, HYPPYNOPEUS);
+        Keyboard.Listen(Key.F, ButtonState.Pressed, KokoNaytto, "Aseta peli kokonäytön tilaan");
+    
+        Keyboard.Listen(Key.T, ButtonState.Pressed, () =>
+        {
+            int jaljella = NaytaTolkit(); // Päivittää arvon ja palauttaa sen
+            MessageDisplay.Add($"Jäljellä olevat tölkit: {jaljella}");
+        }, "Näytä jäljellä olevat tölkit");
     }
 
-
-    private Label LuoLabel(string teksti, Font fontti, Vector sijainti)
+    
+    private void KokoNaytto()
     {
-        Label label = new Label(teksti);
-        label.Font = fontti;
-        label.TextScale *= 2;
-        label.HorizontalAlignment = HorizontalAlignment.Center;
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.Position = sijainti;
-        return label;
+        // Vaihtaa näytön kokonäytön tilaan ja takaisin
+        IsFullScreen = !IsFullScreen;
     }
 
-
+    
     private void Liikuta(PlatformCharacter hahmo, double nopeus)
     {
         hahmo.Walk(nopeus);
@@ -204,7 +208,7 @@ public class Kaljapeli : PhysicsGame
         tolkki.Destroy();
 
         keratytTolkit++;
-        if (keratytTolkit >= TOLKKI_MAARA)
+        if (keratytTolkit >= TolkkiMaara)
         {
             VoititPelin();
         }
@@ -243,24 +247,30 @@ public class Kaljapeli : PhysicsGame
     {
         const double nopeudenLisays = 400;
         const double kestoSekunteina = 5.0;
-        double alkuperainenNopeus = NOPEUS;
         gasAani.Play();
-        
-            if (gasActive) 
-                {
-                    Camera.ZoomFactor = 3.0;
-                }
-        
-        Keyboard.Listen(Key.Left, ButtonState.Down, Liikuta, "Liikuta vasemmalle nopeutetusti", pelaaja1,
-            -(NOPEUS + nopeudenLisays));
-        Keyboard.Listen(Key.Right, ButtonState.Down, Liikuta, "Liikuta oikealle nopeutetusti", pelaaja1,
-            NOPEUS + nopeudenLisays);
-            Timer.SingleShot(kestoSekunteina, delegate
-                {
-                    Keyboard.Listen(Key.Left, ButtonState.Down, Liikuta, "Liikuta vasemmalle", pelaaja1, -alkuperainenNopeus);
-                    Keyboard.Listen(Key.Right, ButtonState.Down, Liikuta, "Liikuta oikealle", pelaaja1, alkuperainenNopeus);
-                });
+
+        // Aktivoidaan nopeutus ja kamera-zoomi
+        if (gasActive) 
+        {
+            Camera.ZoomFactor = 3.0;
+        }
+    
+        isBoosted = true;  // Asetetaan nopeusbuusti aktiiviseksi
+
+        // Ajastimen avulla nopeutus palautetaan normaaliksi tietyn ajan jälkeen
+        Timer.SingleShot(kestoSekunteina, delegate
+        {
+            Camera.ZoomFactor = 5.0; // Palautetaan kamera alkuperäiseen tilaan
+            isBoosted = false; // Poistetaan nopeuden lisäys
+        });
+
         gas.Destroy();
+    }
+
+    private int NaytaTolkit() 
+    {
+        int jaljellaOlevatTolkit = TolkkiMaara - keratytTolkit;
+        return jaljellaOlevatTolkit; // Palauttaa jäljellä olevien tölkkien määrän 
     }
     
     

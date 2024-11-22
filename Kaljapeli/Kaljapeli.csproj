@@ -6,8 +6,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Jypeli.NET" Version="11.*"/>
-        <PackageReference Include="Jypeli.FarseerPhysics.NET" Version="2.*"/>
+        <PackageReference Include="Jypeli.NET" Version="11.*" />
+        <PackageReference Include="Jypeli.FarseerPhysics.NET" Version="2.*" />
+        <PackageReference Include="Silk.NET.Windowing" Version="2.22.0" />
     </ItemGroup>
 
     <ItemGroup>
