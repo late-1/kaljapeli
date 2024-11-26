@@ -21,18 +21,17 @@ public class Kaljapeli : PhysicsGame
     
     private int _keratytTolkit;
     
-    private Image _pelaajanKuva = LoadImage("ukko1.png");
-    private Image _tolkkiKuva = LoadImage("tsingtao.png");
-    private Image _taustaKuva = LoadImage("tausta.png");
-    private Image _lasolKuva = LoadImage("lasol.png");
-    private Image _seinaKuva = LoadImage("seina.png");
-    private Image _gasKuva = LoadImage("fastgas.png");
+    private static readonly Image _pelaajanKuva = LoadImage("ukko1.png");
+    private static readonly Image _tolkkiKuva = LoadImage("tsingtao.png");
+    private static readonly Image _taustaKuva = LoadImage("tausta.png");
+    private static readonly Image _lasolKuva = LoadImage("lasol.png");
+    private static readonly Image _seinaKuva = LoadImage("seina.png");
+    private static readonly Image _gasKuva = LoadImage("fastgas.png");
     
-    private bool _gasActive = true;
     private bool _isBoosted;
     
-    private SoundEffect _kaljaAani = LoadSoundEffect("can-open-2.wav");
-    private SoundEffect _gasAani = LoadSoundEffect("lempparidj.wav");
+    private static readonly SoundEffect _kaljaAani = LoadSoundEffect("can-open-2.wav");
+    private static readonly SoundEffect _gasAani = LoadSoundEffect("lempparidj.wav");
     
     
     /// <summary>
@@ -339,11 +338,8 @@ public class Kaljapeli : PhysicsGame
     {
         const double kestoSekunteina = 5.0;
         _gasAani.Play();
-       
-        if (_gasActive) 
-        {
+        
             Camera.ZoomFactor = 3.0;
-        }
     
         _isBoosted = true;  
         
